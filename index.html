@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -45,6 +45,7 @@
         .btn-dl { background: linear-gradient(135deg, #006400, #228B22); }
         .btn-dl-alt { background: linear-gradient(135deg, #00008B, #4169E1); }
         .btn-clear { background: linear-gradient(135deg, #8B008B, #9932CC); }
+        .btn-edit { background: linear-gradient(135deg, #FF8C00, #FF0000); }
 
         /* HIDE DOC, PDF AND OUTLINE SLIDER ON MOBILE */
         @media (max-width: 767px) {
@@ -67,7 +68,7 @@
         #outputWrapper { overflow-x: auto; width: 100%; padding: 10px 0; }
         
         .size-control { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; font-size: 10px; background: #252525; padding: 6px; border-radius: 6px; }
-        .size-control input { width: 55px; padding: 4px; background: #333; color: white; border: 1px solid #555; border-radius: 4px; font-size: 11px; }
+        .size-control input[type="number"] { width: 55px; padding: 4px; background: #333; color: white; border: 1px solid #555; border-radius: 4px; font-size: 11px; }
         @media (min-width: 768px) { .middle-section { display: flex; gap: 20px; } .left-panel, .right-panel { flex: 1; } }
     </style>
 </head>
@@ -124,6 +125,8 @@
             </div>
 
             <div class="buttons">
+                <!-- ਨਵਾਂ ਐਡਿਟ ਬਟਨ (New Edit Button) -->
+                <button class="btn-edit" onclick="openEditModal()">Edit</button>
                 <button class="btn-add-main" onclick="toggleModal(true)">Add Txt</button>
                 <button class="btn-conv" onclick="process('text')">Text</button>
                 <button class="btn-conv" onclick="process('word')">Word</button>
@@ -138,7 +141,13 @@
             <div class="size-control">
                 <div><label>Width:</label><input type="number" id="canvasWidth" oninput="applyCanvasSize()"></div>
                 <div><label>Height:</label><input type="number" id="canvasHeight" value="100" oninput="applyCanvasSize()"></div>
-                <div><label>Margin (in):</label><input type="number" id="canvasMargin" value="0" step="0.01" oninput="applyCanvasSize()"></div>
+                
+                <!-- ਨਵਾਂ ਮਾਰਜਿਨ ਸਲਾਈਡਰ (New Margin Slider 0.1 to 0.8) -->
+                <div style="display: flex; align-items: center; gap: 5px;">
+                    <label>Margin (in):</label>
+                    <input type="range" id="canvasMargin" min="0.1" max="0.8" step="0.1" value="0.1" oninput="applyCanvasSize()" style="width:60px;">
+                    <span id="marginVal">0.1</span>
+                </div>
             </div>
         </div>
 
@@ -208,15 +217,24 @@
     let lastUsedMode = 'word';
 
     let currentBg = '#ffffff';
-    let currentMargin = 0;
+    let currentMargin = 0.1;
 
     function isMobile() { return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent); }
 
     function toggleModal(show) { document.getElementById('textModal').style.display = show ? 'block' : 'none'; }
+    
+    // ਐਡਿਟ ਬਟਨ ਲਈ ਫੰਕਸ਼ਨ (Function for Edit Button)
+    function openEditModal() {
+        const currentText = document.getElementById('inputText').value;
+        document.getElementById('modalTextArea').value = currentText;
+        toggleModal(true);
+    }
+
     function clearModalText() { 
         document.getElementById('modalTextArea').value = ""; 
         document.getElementById('modalFileInput').value = ""; 
     }
+    
     function handleModalFile(input) {
         const file = input.files[0];
         if (!file) return;
@@ -251,8 +269,10 @@
     function applyCanvasSize() {
         let w = document.getElementById('canvasWidth').value;
         let h = document.getElementById('canvasHeight').value;
-        let m = parseFloat(document.getElementById('canvasMargin').value) || 0;
+        let m = parseFloat(document.getElementById('canvasMargin').value) || 0.1;
         currentMargin = m;
+        
+        document.getElementById('marginVal').innerText = m.toFixed(1);
 
         output.style.width = (w || (isMobile() ? 325 : 900)) + 'px';
         output.style.minHeight = (h || 100) + 'px';
@@ -278,15 +298,25 @@
         let colorIndex = 0;
 
         if (mode === 'line') {
-            const lines = input.split('\n');
-            lines.forEach((line, i) => {
-                if (i > 0) output.appendChild(document.createElement('br'));
-                if (line) {
-                    const span = document.createElement('span');
-                    span.style.color = shuffled[colorIndex % shuffled.length];
-                    span.textContent = line;
-                    output.appendChild(span);
+            // ਫੁੱਲ ਸਟਾਪ (.), ਡੰਡੀ (।), ਪ੍ਰਸ਼ਨ ਚਿੰਨ੍ਹ (?), ਵਿਸਮਿਕ ਚਿੰਨ੍ਹ (!) ਅਤੇ ਬਰੈਕਟਾਂ () ਦੇ ਅਧਾਰ 'ਤੇ ਵੱਖਰਾ ਕਰਨ ਲਈ (Split by punctuation marks & brackets)
+            const segments = input.split(/(?<=[।\.\?\!\)])|(?=\()/);
+            
+            segments.forEach(segment => {
+                if (segment.trim() !== '' || segment === '\n') {
+                    const subLines = segment.split('\n');
+                    subLines.forEach((line, i) => {
+                        if (i > 0) output.appendChild(document.createElement('br'));
+                        if (line) {
+                            const span = document.createElement('span');
+                            span.style.color = shuffled[colorIndex % shuffled.length];
+                            span.textContent = line;
+                            output.appendChild(span);
+                        }
+                    });
                     colorIndex++;
+                } else {
+                    // ਖਾਲੀ ਥਾਵਾਂ (spaces) ਨੂੰ ਬਿਨਾਂ ਰੰਗ ਬਦਲੇ ਬਰਕਰਾਰ ਰੱਖਣ ਲਈ
+                    output.appendChild(document.createTextNode(segment));
                 }
             });
         } else if (mode === 'word') {
@@ -302,7 +332,7 @@
                     colorIndex++;
                 }
             });
-        } else { // per character
+        } else { 
             [...input].forEach(char => {
                 if (char === '\n') {
                     output.appendChild(document.createElement('br'));
@@ -499,3 +529,4 @@ ${output.innerHTML}
 </script>
 </body>
 </html>
+```<FollowUp><ElicitationsGroup></ElicitationsGroup></FollowUp>
